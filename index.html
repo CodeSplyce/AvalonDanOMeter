@@ -1,0 +1,285 @@
+
+<html>
+    <head>
+        <script src="jquery-3.6.0.min.js" ></script>
+        <link rel="stylesheet" href="https://unpkg.com/spectre.css/dist/spectre.min.css">
+        <style>
+            input.displayOnly {
+                border: none;
+                caret-color: transparent;
+            }
+        </style>
+        <script>
+            var storageLoadedInd = false;
+            var playersInit = 5;
+            var tbl = undefined;
+            var localStorage = {};
+            $(document).ready(function() {
+                if (storageAvailable('localStorage')) {
+                    localStorage = window.localStorage;
+                    if (!localStorage.hasOwnProperty("players"))
+                    {
+                        localStorage["locked"] = false;
+                    }
+                    else
+                    {
+                        storageLoadedInd = true;
+                        playersInit = parseInt(localStorage["players"]);
+                    }
+                    localStorage["players"] = 0;
+                }
+                else {
+                    alert("This site requires local storage to maintain state. Your browser does not support local storage. Reloading the page will result in a loss of your data.");
+                }
+                tbl = $("table");
+                $("#btnUnlock").hide();
+                for (var count = 0; count < playersInit; count++)
+                {
+                    addPlayer(storageLoadedInd);
+                }
+                $("#btnRem").attr("disabled", true);
+            });
+
+            function storageAvailable(type) {
+                var storage;
+                try {
+                    storage = window[type];
+                    var x = '__storage_test__';
+                    storage.setItem(x, x);
+                    storage.removeItem(x);
+                    return true;
+                }
+                catch(e) {
+                    return e instanceof DOMException && (
+                        // everything except Firefox
+                        e.code === 22 ||
+                        // Firefox
+                        e.code === 1014 ||
+                        // test name field too, because code might not be present
+                        // everything except Firefox
+                        e.name === 'QuotaExceededError' ||
+                        // Firefox
+                        e.name === 'NS_ERROR_DOM_QUOTA_REACHED') &&
+                        // acknowledge QuotaExceededError only if there's something already stored
+                        (storage && storage.length !== 0);
+                }
+            }
+
+            var playerHeader = "<th><input id='player{0}' class='playerHeader displayOnly' onfocus='focusPlayerHeader(this);' onblur='blurPlayerHeader(this);' Placeholder='Enter Name' value='{1}' style='text-align: center;'/></th>";
+            var playerHeaderTd = "<td id='{0}' style=\"text-align: center;\">0</td>";
+            var playerBodyRow = "<tr id='{0}'><td style='color: rgb(255, 255, 255);'><span id='{1}'></span> <span id='{2}'></span></td></tr>";
+            var playerBodyTd = "<td style=\"text-align: center;\"><button onclick='decrement(\"{1}\", \"{2}\", \"{3}\")'>-</button><input id='{0}' class=\"displayOnly\" value=\"{4}\" style=\"text-align: center; max-width: 40px;\"/><button onclick='increment(\"{1}\", \"{2}\", \"{3}\")'>+</button></td>";
+            var playerActions = ["playerTrust", "playerSus"];
+            var trustColors = ["rgb(255, 75, 75)", "rgba(0, 0, 255, .5)", "rgba(0, 0, 255, .55)", "rgba(0, 0, 255, .6)", "rgba(0, 0, 255, .65)", "rgba(0, 0, 255, .7)", "rgba(0, 0, 255, .75)", "rgba(0, 0, 255, .8)", "rgba(0, 0, 255, .85)", "rgba(0, 0, 255, .9)", "rgba(0, 0, 255, 1)"];
+            var susColors =   ["rgb(75, 75, 255)", "rgba(255, 0, 0, .5)", "rgba(255, 0, 0, .55)", "rgba(255, 0, 0, .6)", "rgba(255, 0, 0, .65)", "rgba(255, 0, 0, .7)", "rgba(255, 0, 0, .75)", "rgba(255, 0, 0, .8)", "rgba(255, 0, 0, .85)", "rgba(255, 0, 0, .9)", "rgba(255, 0, 0, 1)"];
+            function addPlayer(initInd)
+            {
+                var header = playerHeader.replace('{0}', localStorage.players).replace('{1}', localStorage["player"+localStorage.players] || '');
+                var tdTrust = playerHeaderTd.replace('{0}', "playerTrustSum"+localStorage.players);
+                var tdSus = playerHeaderTd.replace('{0}', "playerSusSum"+localStorage.players);
+                tbl.find("tr#playerHeaderRow").append(header);
+                tbl.find("tr#playerHeaderTrust").append(tdTrust);
+                tbl.find("tr#playerHeaderSus").append(tdSus);
+                
+                tbl.find("tr#playerHeaderTrust td:not(:first-child)").css("background-color", trustColors[0]);
+                tbl.find("tr#playerHeaderSus td:not(:first-child)").css("background-color", susColors[0]);
+                tbl.find("tr#playerHeaderTrust td:not(:first-child)").css("color","rgb(255, 255, 255)");
+                tbl.find("tr#playerHeaderSus td:not(:first-child)").css("color","rgb(255, 255, 255)");
+                tbl.find("tr#playerHeaderTrust td:not(:first-child)").css("color","rgb(255, 255, 255)");
+
+                playerActions.forEach(action =>
+                {
+                    var tr = playerBodyRow.replace('{0}', action+localStorage.players).replace('{1}', action+"Name"+localStorage.players).replace('{2}', action+"Score"+localStorage.players);
+                    tbl.find("tbody").append(tr);
+                });
+                var players = parseInt(localStorage.players);
+                localStorage.players = ++players;
+                fillRows(initInd);
+                blurPlayerHeader("#player"+((parseInt(localStorage.players)-1) || 0));
+                
+                if (players == 10)
+                {
+                    $("#btnAdd").attr("disabled", true);
+                }
+                $("#btnRem").removeAttr("disabled");
+            }
+
+            function removePlayer()
+            {
+                tbl.find("tr#playerHeaderRow").children().last().remove();
+                tbl.find("tr#playerHeaderTrust").children().last().remove();
+                tbl.find("tr#playerHeaderSus").children().last().remove();
+                tbl.find("tbody tr").children().last().remove();
+                tbl.find("tbody").children().last().remove();
+                $("#btnAdd").removeAttr("disabled");
+                var players = parseInt(localStorage.players);
+                localStorage.players = --players;
+                if (players == 5)
+                {
+                    $("#btnRem").attr("disabled", true);
+                }
+            }
+
+            function fillRows(initInd)
+            {
+                var players = parseInt(localStorage.players);
+                playersLastIdx = players-1;
+                for (var count = 0; count < players; count++)
+                {
+                    playerActions.forEach(action =>
+                    {
+                        var id = action+"Value"+count+"_"+playersLastIdx;
+                        if (!initInd)
+                            localStorage[id] = 0;
+                        var td = playerBodyTd.replace('{0}', id).replaceAll('{1}', action).replaceAll('{2}', count).replaceAll('{3}', playersLastIdx).replaceAll('{4}', localStorage[id]);
+                        $("#"+action+playersLastIdx).append(td);
+                        if (count == playersLastIdx)
+                        {
+                            $("#"+action+"Value"+playersLastIdx+"_"+count).parent().empty();
+                            delete localStorage[id];
+                        }
+                        if (playersLastIdx-count > 0)
+                        {
+                            var id2 = action+"Value"+playersLastIdx+"_"+count;
+                            if (!initInd)
+                                localStorage[id2] = 0;
+                            var td = playerBodyTd.replace('{0}', id2).replaceAll('{1}', action).replaceAll('{2}', playersLastIdx).replaceAll('{3}', count).replaceAll('{4}', localStorage[id2]);
+                            $("#"+action+count).append(td);
+                        }
+                    });
+                }
+                
+                for (var count = 0; count < players; count++)
+                {
+                    playerActions.forEach(action =>
+                    {
+                        ColumnSum(action, count);
+                        RowSum(action, count);
+                    });
+                }
+            }
+
+            function focusPlayerHeader(me)
+            {
+                if (localStorage["locked"] !== "true")
+                {
+                    $(me).removeClass("displayOnly");
+                }
+            }
+
+            function blurPlayerHeader(me)
+            {
+                if (localStorage["locked"] !== "true")
+                {
+                    $(me).addClass("displayOnly");
+                    var name = $(me).val();
+                    localStorage[$(me).attr("id")] = name;
+                    var id = $(me).attr("id").replace("player", "");
+                    $("#playerTrustName"+id).html(name+" Trust");
+                    $("#playerSusName"+id).html(name+" Sus");
+                }
+            }
+
+            function lockGame()
+            {
+                localStorage["locked"] = true;
+                $(".btn.unlocked").hide();
+                $(".btn.locked").show();
+                $(".playerHeader").attr("disabled", true);
+                $(".playerHeader").attr("tabindex", -1);
+            }
+
+            function unlockGame()
+            {
+                localStorage["locked"] = false;
+                $(".btn.unlocked").show();
+                $(".btn.locked").hide();
+                $(".playerHeader").removeAttr("disabled");
+                $(".playerHeader").removeAttr("tabindex");
+            }
+
+            function increment(action, column, row)
+            {
+                var inputId = action+"Value"+column+"_"+row;
+                var val = parseInt(localStorage[inputId]);
+                localStorage[inputId] = ++val;
+                $("#"+inputId).val(val);
+
+                ColumnSum(action, column);
+                RowSum(action, row);
+            }
+
+            function decrement(action, column, row)
+            {
+                var inputId = action+"Value"+column+"_"+row;
+                var val = parseInt(localStorage[inputId]);
+                localStorage[inputId] = --val;
+                $("#"+inputId).val(val);
+
+                ColumnSum(action, column);
+                RowSum(action, row);
+            }
+
+            function reset()
+            {
+                localStorage.clear();
+                window.location.reload();
+            }
+
+            function ColumnSum(action, column)
+            {
+                var sum = 0;
+                var playerValueSubId = action+"Value"+column+"_";
+                for (var cnt = 0; cnt < parseInt(localStorage["players"]); cnt++)
+                {
+                    var valueId = playerValueSubId+cnt;
+                    sum += parseInt(localStorage[valueId]) || 0;
+                }
+
+                var sumId = action+"Sum"+column;
+                $("#"+sumId).html(sum);
+                $("#"+sumId).css("background-color", action[6] === 'T' ? trustColors[sum] : susColors[sum]);
+            }
+
+            function RowSum(action, row)
+            {
+                var sum = 0;
+                var playerValueSubId = action+"Value";
+                for (var cnt = 0; cnt < parseInt(localStorage["players"]); cnt++)
+                {
+                    var valueId = playerValueSubId+cnt+"_"+row;
+                    sum += parseInt(localStorage[valueId]) || 0;
+                }
+
+                var sumId = action+"Score"+row;
+                $("#"+sumId).html(sum);
+                $("#"+sumId).parent().css("background-color", action[6] !== 'T' ? trustColors[sum] : susColors[sum]);
+            }
+        </script>
+    </head>
+    <body>
+        <h1>Avalon Dan O Meter</h2>
+        <div>
+            <button type="button" class="btn locked" onclick="unlockGame();" id="btnUnlock">Unlock</button>
+            <button type="button" class="btn unlocked" onclick="lockGame();" id="btnLock">Lock</button>
+            <button type="button" class="btn unlocked" onclick="addPlayer();" id="btnAdd">Add Player</button>
+            <button type="button" class="btn unlocked" onclick="removePlayer();" id="btnRem">Remove Player</button>
+            <button type="button" class="btn unlocked" onclick="reset();">Reset</button>
+        </div>
+        <table id="tbl" border="1">
+            <thead>
+                <tr id="playerHeaderTrust">
+                    <td>Trust O Meter</td>
+                </tr>
+                <tr id="playerHeaderSus">
+                    <td>Sus&nbsp;&nbsp;&nbsp;O Meter</td>
+                </tr>
+                <tr id="playerHeaderRow">
+                    <th></th>
+                </tr>
+            </thead>
+            <tbody>
+            </tbody>       
+        </table>
+    </body>
+</html>
